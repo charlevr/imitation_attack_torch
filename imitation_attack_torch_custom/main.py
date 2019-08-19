@@ -93,7 +93,7 @@ class SimpleLSTMBaseline(nn.Module):
         self.embedding = nn.Embedding(len(TEXT.vocab), emb_dim)
         self.encoder = nn.LSTM(emb_dim, hidden_dim, num_layers=1)
         self.linear_layers = []
-        for _ in range(num_linear - 1):
+        for _ in range(num_linear):
             self.linear_layers.append(nn.Linear(hidden_dim, hidden_dim))
             self.linear_layers = nn.ModuleList(self.linear_layers)
         self.predictor = nn.Linear(hidden_dim, 6)
@@ -101,45 +101,47 @@ class SimpleLSTMBaseline(nn.Module):
     def forward(self, seq):
         hdn, _ = self.encoder(self.embedding(seq))
         feature = hdn[-1, :, :]
-        preds = self.predictor(feature)
         for layer in self.linear_layers:
-          feature = layer(feature)
-          preds = self.predictor(feature)
+            feature = layer(feature)
+            preds = self.predictor(feature)
         return preds
  
 
 em_sz = 100 
 nh = 500 
 nl = 3 
-model = SimpleLSTMBaseline(nh, emb_dim=em_sz)
+model = SimpleLSTMBaseline(nh, emb_dim=em_sz)#, num_linear=nl)
   
+opt = optim.Adam(model.parameters(), lr=1e-2)
+loss_func = nn.BCEWithLogitsLoss()
 
-opt = optim.Adam(model.parameters(), lr=1e-2) 
-loss_func = nn.BCEWithLogitsLoss()  
 epochs = 2
 
-for epoch in range(1, epochs + 1):     
-	running_loss = 0.0     
-	running_corrects = 0     
-	model.train() # turn on training mode     
-	for x, y in tqdm.tqdm(train_dl): # thanks to our wrapper, we can intuitively iterate over our data!         
-		opt.zero_grad()          
-		preds = model(x)         
-		loss = loss_func(y, preds)         
-		loss.backward()         
-		opt.step()          
-		running_loss += loss.data[0] * x.size(0)
+for epoch in range(1, epochs + 1):
+    running_loss = 0.0
+    running_corrects = 0
+    model.train() # turn on training mode
+    for x, y in tqdm.tqdm(train_dl): # thanks to our wrapper, we can intuitively iterate over our data!
+        opt.zero_grad()
 
-	epoch_loss = running_loss / len(trn) 
+        preds = model(x)
+        print(y)
+        print(preds)
+        loss = loss_func(y, preds)
+        loss.backward()
+        opt.step()
 
-	# calculate the validation loss for this epoch     
-	val_loss = 0.0 
+        running_loss += loss.data[0] * x.size(0)
 
-	model.eval() # turn on evaluation mode     
-	for x, y in valid_dl:         
-		preds = model(x)         
-		loss = loss_func(y, preds)         
-		val_loss += loss.data[0] * x.size(0)      
-	val_loss /= len(vld)     
-	print('Epoch: {}, Training Loss: {:.4f}, Validation Loss: {:.4f}'.format(epoch, epoch_loss, val_loss))
+    epoch_loss = running_loss / len(trn)
 
+    # calculate the validation loss for this epoch
+    val_loss = 0.0
+    model.eval() # turn on evaluation mode
+    for x, y in valid_dl:
+        preds = model(x)
+        loss = loss_func(y, preds)
+        val_loss += loss.data[0] * x.size(0)
+
+    val_loss /= len(vld)
+    print('Epoch: {}, Training Loss: {:.4f}, Validation Loss: {:.4f}'.format(epoch, epoch_loss, val_loss))
